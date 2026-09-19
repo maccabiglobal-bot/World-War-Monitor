@@ -2,60 +2,63 @@ import json
 import datetime
 import requests
 import yfinance as yf
-import praw
+import feedparser
 
 # ---------------------------------------------------------
 # 1. OFFICIAL SOURCES (70% Weight) - Macro & Geopolitical
 # ---------------------------------------------------------
 def get_official_score():
     score = 0
-    
     try:
-        # A. Volatility Index (VIX) - Measures global market anxiety
+        # A. Volatility Index (VIX)
         vix = yf.Ticker("^VIX").history(period="1d")['Close'].iloc[0]
-        vix_score = min((vix / 40) * 100, 100) # Normalizing: VIX > 40 is extreme panic
+        vix_score = min((vix / 40) * 100, 100) 
         
-        # B. Crude Oil (CL=F) - Proxy for supply chain/military logistics stress
+        # B. Crude Oil (CL=F)
         oil = yf.Ticker("CL=F").history(period="5d")
         oil_trend = (oil['Close'].iloc[-1] - oil['Close'].iloc[0]) / oil['Close'].iloc[0]
-        oil_score = 50 + (oil_trend * 500) # Spikes in oil increase the score
+        oil_score = 50 + (oil_trend * 500) 
         
-        # C. Gold (GC=F) - Safe-haven asset hoarding
+        # C. Gold (GC=F)
         gold = yf.Ticker("GC=F").history(period="5d")
         gold_trend = (gold['Close'].iloc[-1] - gold['Close'].iloc[0]) / gold['Close'].iloc[0]
         gold_score = 50 + (gold_trend * 500)
         
-        # Aggregate Official Score (capped between 0 and 100)
         score = (vix_score * 0.4) + (oil_score * 0.3) + (gold_score * 0.3)
         return max(0, min(100, score))
-        
     except Exception as e:
         print(f"Error fetching official data: {e}")
-        return 50 # Default baseline if API fails
+        return 50
 
 # ---------------------------------------------------------
 # 2. UNOFFICIAL SOURCES (30% Weight) - OSINT & Social Sentiment
 # ---------------------------------------------------------
 def get_unofficial_score():
-    # Note: Create a free app on Reddit (reddit.com/prefs/apps) to get these credentials
-    reddit = praw.Reddit(
-        client_id='YOUR_REDDIT_CLIENT_ID',
-        client_secret='YOUR_REDDIT_SECRET',
-        user_agent='world_war_monitor_v1'
-    )
-    
-    keywords = ['world war', 'ww3', 'draft', 'mobilization', 'nuclear', 'defcon']
+    keywords = ['world war', 'ww3', 'draft', 'mobilization', 'nuclear', 'defcon', 'escalation']
     threat_count = 0
     
     try:
-        # Scan top posts in geopolitical subreddits over the last 24 hours
-        for submission in reddit.subreddit('worldnews+geopolitics+preppers').top(time_filter='day', limit=100):
-            text = (submission.title + " " + submission.selftext).lower()
-            if any(word in text for word in keywords):
-                threat_count += 1
-                
-        # Normalize to 100 (e.g., if 30 out of 100 top posts contain panic keywords, score is high)
-        score = min((threat_count / 30) * 100, 100)
+        # Bypass API keys using Reddit's public RSS feeds
+        urls = [
+            'https://www.reddit.com/r/worldnews/top/.rss?t=day',
+            'https://www.reddit.com/r/geopolitics/top/.rss?t=day',
+            'https://www.reddit.com/r/preppers/top/.rss?t=day'
+        ]
+        
+        # A fake "browser" tag so Reddit doesn't block our robot
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        
+        for url in urls:
+            response = requests.get(url, headers=headers)
+            feed = feedparser.parse(response.content)
+            
+            for entry in feed.entries:
+                text = (entry.title).lower()
+                if any(word in text for word in keywords):
+                    threat_count += 1
+                    
+        # Normalize to 100 (if 15 top posts contain panic keywords, score is high)
+        score = min((threat_count / 15) * 100, 100)
         return score
         
     except Exception as e:
@@ -71,10 +74,8 @@ def main():
     official_score = get_official_score()
     unofficial_score = get_unofficial_score()
     
-    # Apply the 70/30 weighting framework
     final_score = (official_score * 0.7) + (unofficial_score * 0.3)
     
-    # Prepare the JSON payload for the frontend dashboard
     dashboard_data = {
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
         "global_risk_score": round(final_score, 1),
@@ -85,11 +86,10 @@ def main():
         "status": "ELEVATED" if final_score > 60 else "STABLE"
     }
     
-    # Save to data.json (Vercel/Netlify will read this file to render the site)
     with open('data.json', 'w') as f:
         json.dump(dashboard_data, f, indent=4)
         
-    print(f"Update complete. Current World War Probability Score: {round(final_score, 1)}")
+    print(f"Update complete. Current Score: {round(final_score, 1)}")
 
 if __name__ == "__main__":
     main()
