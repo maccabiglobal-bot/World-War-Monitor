@@ -1,0 +1,9 @@
+{
+    "timestamp": "2026-09-19T11:06:12.609552Z",
+    "global_risk_score": 34.0,
+    "metrics": {
+        "official_index": 45.7,
+        "unofficial_index": 6.7
+    },
+    "status": "STABLE"
+}
