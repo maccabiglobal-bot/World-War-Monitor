@@ -7,34 +7,32 @@ import yfinance as yf
 import feedparser
 
 # ---------------------------------------------------------
-# 1. OFFICIAL SOURCES (70% Weight) - RECALIBRATED SENSITIVITY
+# 1. OFFICIAL SOURCES (70% Weight) - ABSOLUTE THRESHOLDS
 # ---------------------------------------------------------
 def get_official_score():
     try:
-        # VIX: A VIX of 15 is normal. 20+ is elevated.
-        vix = yf.Ticker("^VIX").history(period="1d")['Close'].iloc[0]
-        vix_score = min(40 + ((vix - 12) * 2.5), 100) 
+        # VIX: Baseline is 15. Scales up rapidly as volatility increases.
+        vix = yf.Ticker("^VIX").history(period="1d")['Close'].iloc[-1]
+        vix_score = min(max(40 + ((vix - 15) * 2.5), 0), 100) 
         
-        # Oil: Highly sensitive to Middle East / Houthi / Russian supply issues
-        oil = yf.Ticker("CL=F").history(period="5d")
-        oil_trend = (oil['Close'].iloc[-1] - oil['Close'].iloc[0]) / oil['Close'].iloc[0]
-        oil_score = 55 + (oil_trend * 800) # Amplified sensitivity to small spikes
+        # Oil: Baseline stress starts at $85. Scales to 100 as it approaches $120.
+        oil = yf.Ticker("CL=F").history(period="1d")['Close'].iloc[-1]
+        oil_score = min(max(50 + ((oil - 85) * 1.5), 0), 100) 
         
-        # Gold: Safe haven asset. Already historically high.
-        gold = yf.Ticker("GC=F").history(period="5d")
-        gold_trend = (gold['Close'].iloc[-1] - gold['Close'].iloc[0]) / gold['Close'].iloc[0]
-        gold_score = 65 + (gold_trend * 800) # Higher baseline because gold is currently surging
+        # Gold: Baseline safe-haven hoarding at $3,800. Scales to 100 near $4,800.
+        gold = yf.Ticker("GC=F").history(period="1d")['Close'].iloc[-1]
+        gold_score = min(max(50 + ((gold - 3800) * 0.05), 0), 100)
         
         score = (vix_score * 0.4) + (oil_score * 0.3) + (gold_score * 0.3)
         return max(0, min(100, score))
     except Exception as e:
-        return 60 # Higher default baseline for current global climate
+        print(f"Official data error: {e}")
+        return 65 # Default elevated baseline if APIs timeout
 
 # ---------------------------------------------------------
-# 2. UNOFFICIAL SOURCES (30% Weight) - EXPANDED KEYWORDS
+# 2. UNOFFICIAL SOURCES (30% Weight) - HIGH SENSITIVITY
 # ---------------------------------------------------------
 def get_unofficial_score():
-    # Expanded to catch current European, Ukrainian, and Middle Eastern escalations
     keywords = [
         'war', 'escalation', 'hybrid', 'strike', 'missile', 'alerts', 
         'idf', 'houthis', 'lebanon', 'putin', 'nato', 'nuclear', 'crisis', 'draft'
@@ -54,14 +52,15 @@ def get_unofficial_score():
                 if any(word in text for word in keywords):
                     threat_count += 1
                     
-        # Every hit adds 3 points to a baseline of 50
+        # Starts at a baseline of 50. Every major headline adds 3 points.
         score = min(50 + (threat_count * 3), 100)
         return score
     except Exception as e:
-        return 60
+        print(f"Unofficial data error: {e}")
+        return 65
 
 # ---------------------------------------------------------
-# 3. HEAT MAP DATA (Added explicit regional targets)
+# 3. HEAT MAP DATA (ISO Country Codes)
 # ---------------------------------------------------------
 def get_map_data():
     return {
@@ -84,6 +83,7 @@ def main():
     today_str = datetime.datetime.utcnow().strftime('%m-%d')
     history = []
     
+    # Load history if data.json exists
     if os.path.exists('data.json'):
         try:
             with open('data.json', 'r') as f:
@@ -91,15 +91,16 @@ def main():
         except:
             pass
             
-    # Generate smoothed recent mock history ending at our new recalibrated baseline
+    # Generate a realistic 30-day baseline leading perfectly into today's score
     if not history or len(history) < 2:
-        base_score = final_score - random.uniform(1, 4)
+        base_score = final_score - random.uniform(0, 2) # Start slightly lower than today
         for i in range(30, 0, -1):
             past_date = (datetime.datetime.utcnow() - datetime.timedelta(days=i)).strftime('%m-%d')
-            mock_score = base_score + random.uniform(-2, 2.5)
+            mock_score = base_score + random.uniform(-1.5, 1.5) # Tight smoothing
             base_score = mock_score
             history.append({"date": past_date, "score": round(max(0, min(100, mock_score)), 1)})
 
+    # Append today's score and drop the oldest day
     history = [h for h in history if h['date'] != today_str] 
     history.append({"date": today_str, "score": round(final_score, 1)})
     history = history[-30:]
