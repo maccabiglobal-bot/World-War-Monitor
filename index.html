@@ -3,172 +3,164 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Threat Index | World War Monitor</title>
-    <!-- Tailwind CSS for rapid, modern styling -->
+    <title>World War Index</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for the 30-Day Trendline -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsVectorMap for the World Heat Map -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap/dist/css/jsvectormap.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/maps/world.js"></script>
+
     <style>
         body { background-color: #0B0F19; color: #E2E8F0; }
-        
-        /* Glassmorphism card effect */
-        .glass { 
-            background: rgba(30, 41, 59, 0.7); 
-            backdrop-filter: blur(10px); 
-            border: 1px solid rgba(255, 255, 255, 0.05); 
-            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
-        }
-        
-        /* Custom central score circle */
-        .circle-wrap { 
-            width: 160px; 
-            height: 160px; 
-            background: #1E293B; 
-            border-radius: 50%; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            position: relative; 
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
-        }
-        .circle-wrap::before { 
-            content: ""; 
-            position: absolute; 
-            inset: 12px; 
-            border-radius: 50%; 
-            background: #0B0F19; 
-            z-index: 1;
-        }
-        .score-text { 
-            position: relative; 
-            z-index: 2; 
-            font-size: 3.5rem; 
-            font-weight: 800; 
-            letter-spacing: -2px;
-        }
-        
-        /* Animation for high-risk status */
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
+        .circle-wrap { width: 160px; height: 160px; background: #1E293B; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: center; align-items: center; position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); margin: 0 auto;}
+        .circle-wrap::before { content: ""; position: absolute; inset: 12px; border-radius: 50%; background: #0B0F19; z-index: 1; }
+        .score-text { position: relative; z-index: 2; font-size: 3.5rem; font-weight: 800; letter-spacing: -2px; }
         .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        #map { width: 100%; height: 300px; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4 md:p-8 font-sans">
     
-    <!-- Header -->
-    <header class="w-full max-w-4xl mt-4 mb-10 text-center">
-        <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 tracking-tight uppercase">
-            Global Threat Index
+    <header class="w-full max-w-5xl mt-2 mb-8 text-center">
+        <h1 class="text-4xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 tracking-tight uppercase">
+            World War Index
         </h1>
-        <p class="text-slate-400 mt-2 text-sm tracking-widest uppercase">Automated Geopolitical Risk Assessment</p>
+        <p class="text-slate-400 mt-2 text-sm tracking-widest uppercase" id="last-updated">Awaiting sync...</p>
     </header>
 
-    <!-- Main Dashboard Grid -->
-    <main class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
+    <main class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        <!-- Primary Score Card (Spans full width) -->
-        <div class="glass p-8 rounded-2xl col-span-1 md:col-span-3 flex flex-col md:flex-row items-center justify-around">
-            <div class="text-center mb-8 md:mb-0">
-                <h2 class="text-xl font-semibold text-slate-300">World War Probability</h2>
-                <p class="text-xs text-slate-500 mt-2 max-w-[200px] mx-auto">Algorithmically generated 0-100 baseline derived from macroeconomic and OSINT data.</p>
-            </div>
-            
-            <!-- Central Gauge -->
-            <div class="circle-wrap" id="score-circle">
-                <span class="score-text text-slate-100" id="main-score">--</span>
-            </div>
-            
-            <div class="text-center mt-8 md:mt-0">
+        <!-- Score & Chart Section -->
+        <div class="glass p-6 rounded-2xl md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div class="text-center">
+                <h2 class="text-lg font-semibold text-slate-300 mb-4">Today's Probability</h2>
+                <div class="circle-wrap mb-4" id="score-circle">
+                    <span class="score-text text-slate-100" id="main-score">--</span>
+                </div>
                 <h3 class="text-xl font-black text-slate-300 uppercase tracking-widest" id="status-text">LOADING...</h3>
-                <p class="text-xs text-slate-500 mt-2" id="last-updated">Awaiting synchronization...</p>
+            </div>
+            <div class="w-full h-full min-h-[200px]">
+                <canvas id="trendChart"></canvas>
             </div>
         </div>
 
-        <!-- Official Data Metric Bar -->
-        <div class="glass p-6 rounded-2xl flex flex-col justify-center">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Official Sources (70% Wgt)</h3>
-            <div class="w-full bg-slate-800 rounded-full h-3 mb-3 border border-slate-700">
-                <div class="bg-blue-500 h-3 rounded-full transition-all duration-1000" id="official-bar" style="width: 0%"></div>
-            </div>
-            <div class="flex justify-between text-xs text-slate-400 font-medium tracking-wide">
-                <span>Markets & Resources</span>
-                <span id="official-val">--/100</span>
-            </div>
-        </div>
-
-        <!-- Unofficial Data Metric Bar -->
-        <div class="glass p-6 rounded-2xl flex flex-col justify-center">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Unofficial Sources (30% Wgt)</h3>
-            <div class="w-full bg-slate-800 rounded-full h-3 mb-3 border border-slate-700">
-                <div class="bg-purple-500 h-3 rounded-full transition-all duration-1000" id="unofficial-bar" style="width: 0%"></div>
-            </div>
-            <div class="flex justify-between text-xs text-slate-400 font-medium tracking-wide">
-                <span>OSINT & Sentiment</span>
-                <span id="unofficial-val">--/100</span>
-            </div>
-        </div>
-
-        <!-- Underlying Parameters Tracked -->
+        <!-- Parameters (Simple English) -->
         <div class="glass p-6 rounded-2xl md:col-span-1">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Tracked Parameters</h3>
-            <ul class="text-[11px] text-slate-400 space-y-3 uppercase font-medium">
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-red-500 mr-3 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span> Interconnected Conflicts</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-orange-500 mr-3 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></span> Authoritarian Military Blocs</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-yellow-500 mr-3 shadow-[0_0_8px_rgba(234,179,8,0.8)]"></span> Western Alliance Cohesion</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-3 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span> Supply Chain Vulnerability</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-purple-500 mr-3 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span> Macroeconomic Fragility</li>
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">What We Monitor</h3>
+            <ul class="text-[12px] text-slate-300 space-y-4 font-medium">
+                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-red-500 mr-3"></span> Wars Spreading to New Countries</li>
+                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-orange-500 mr-3"></span> Dictatorships Teaming Up</li>
+                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-yellow-500 mr-3"></span> Disagreements Among Allies</li>
+                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-3"></span> Weapons & Supply Shortages</li>
+                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-purple-500 mr-3"></span> Global Economy Panicking</li>
             </ul>
         </div>
+
+        <!-- World Heat Map Section -->
+        <div class="glass p-6 rounded-2xl md:col-span-3">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Global Conflict Heat Map</h3>
+                <div class="flex space-x-3 text-[10px] text-slate-400 uppercase font-bold">
+                    <span class="flex items-center"><div class="w-3 h-3 bg-red-500 mr-1 rounded-sm"></div> Ongoing</span>
+                    <span class="flex items-center"><div class="w-3 h-3 bg-orange-500 mr-1 rounded-sm"></div> Threat</span>
+                    <span class="flex items-center"><div class="w-3 h-3 bg-yellow-500 mr-1 rounded-sm"></div> Potential</span>
+                </div>
+            </div>
+            <div id="map"></div>
+        </div>
+
     </main>
 
     <script>
-        // Fetch the data.json file generated daily by your GitHub Actions Python script
+        let trendChartInstance = null;
+
         async function loadData() {
             try {
-                // The browser will fetch this file from the same folder as the HTML file
                 const response = await fetch('data.json');
                 const data = await response.json();
                 
-                // 1. Update the Main 0-100 Score
+                // 1. Update Score
                 const score = data.global_risk_score;
                 document.getElementById('main-score').innerText = score;
-                
-                // 2. Adjust Colors & Status Text based on the threat level
                 const statusEl = document.getElementById('status-text');
                 statusEl.innerText = data.status;
                 
-                if (score < 40) {
-                    statusEl.className = "text-xl font-black text-green-400 uppercase tracking-widest";
-                    document.getElementById('main-score').classList.add('text-green-400');
-                } else if (score < 65) {
-                    statusEl.className = "text-xl font-black text-yellow-400 uppercase tracking-widest";
-                    document.getElementById('main-score').classList.add('text-yellow-400');
-                } else {
-                    statusEl.className = "text-xl font-black text-red-500 uppercase tracking-widest pulse";
-                    document.getElementById('main-score').classList.add('text-red-500');
-                    document.getElementById('score-circle').style.boxShadow = "inset 0 0 20px rgba(239, 68, 68, 0.4), 0 0 30px rgba(239, 68, 68, 0.2)";
+                if (score < 40) { statusEl.className = "text-xl font-black text-green-400 uppercase tracking-widest"; document.getElementById('main-score').classList.add('text-green-400'); } 
+                else if (score < 65) { statusEl.className = "text-xl font-black text-yellow-400 uppercase tracking-widest"; document.getElementById('main-score').classList.add('text-yellow-400'); } 
+                else { statusEl.className = "text-xl font-black text-red-500 uppercase tracking-widest pulse"; document.getElementById('main-score').classList.add('text-red-500'); document.getElementById('score-circle').style.boxShadow = "inset 0 0 20px rgba(239, 68, 68, 0.4)"; }
+
+                const date = new Date(data.timestamp);
+                document.getElementById('last-updated').innerText = "Last Updated: " + date.toLocaleDateString() + " UTC";
+
+                // 2. Build 30-Day Trendline Chart
+                const dates = data.history.map(h => h.date);
+                const scores = data.history.map(h => h.score);
+                
+                const ctx = document.getElementById('trendChart').getContext('2d');
+                if(trendChartInstance) trendChartInstance.destroy();
+                trendChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Index Score',
+                            data: scores,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false, color: '#334155' }, ticks: { color: '#94a3b8', maxTicksLimit: 6 } },
+                            y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+
+                // 3. Build Interactive Heat Map
+                const mapData = data.map_data || {};
+                const regionColors = {};
+                
+                // Convert 3, 2, 1 scores into colors
+                for (const [countryCode, threatLevel] of Object.entries(mapData)) {
+                    if (threatLevel === 3) regionColors[countryCode] = '#ef4444'; // Red
+                    else if (threatLevel === 2) regionColors[countryCode] = '#f97316'; // Orange
+                    else if (threatLevel === 1) regionColors[countryCode] = '#eab308'; // Yellow
                 }
 
-                // 3. Animate the sub-metric progress bars
-                document.getElementById('official-bar').style.width = data.metrics.official_index + "%";
-                document.getElementById('official-val').innerText = data.metrics.official_index + "/100";
-                
-                document.getElementById('unofficial-bar').style.width = data.metrics.unofficial_index + "%";
-                document.getElementById('unofficial-val').innerText = data.metrics.unofficial_index + "/100";
+                document.getElementById('map').innerHTML = ""; // clear old map
+                new jsVectorMap({
+                    selector: '#map',
+                    map: 'world',
+                    backgroundColor: 'transparent',
+                    zoomOnScroll: false,
+                    regionStyle: {
+                        initial: { fill: '#1e293b', stroke: '#0B0F19', strokeWidth: 0.5 },
+                        hover: { fill: '#cbd5e1' }
+                    },
+                    series: {
+                        regions: [{
+                            attribute: 'fill',
+                            values: regionColors
+                        }]
+                    }
+                });
 
-                // 4. Update the Timestamp
-                const date = new Date(data.timestamp);
-                document.getElementById('last-updated').innerText = "Last sync: " + date.toLocaleDateString() + " @ " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " UTC";
-
-            } catch (error) {
-                // Failsafe in case data.json hasn't been created yet or can't be reached
-                console.log("Error loading data:", error);
-                document.getElementById('main-score').innerText = "ERR";
-                document.getElementById('status-text').innerText = "DATA OFFLINE";
-                document.getElementById('status-text').className = "text-xl font-black text-slate-500 uppercase tracking-widest";
-                document.getElementById('last-updated').innerText = "Check GitHub Actions logs";
-            }
+            } catch (error) { console.log(error); }
         }
-
-        // Trigger the data fetch as soon as the page loads
         loadData();
     </script>
 </body>
