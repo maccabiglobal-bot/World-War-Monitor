@@ -7,9 +7,9 @@ import yfinance as yf
 import feedparser
 
 # ---------------------------------------------------------
-# 1. OFFICIAL SOURCES (70% Weight) 
+# MARKET PROXIES (For Economic/Diplomatic baselines)
 # ---------------------------------------------------------
-def get_official_score():
+def get_market_data():
     try:
         vix = yf.Ticker("^VIX").history(period="1d")['Close'].iloc[-1]
         vix_score = min(max(40 + ((vix - 15) * 2.5), 0), 100) 
@@ -20,21 +20,25 @@ def get_official_score():
         gold = yf.Ticker("GC=F").history(period="1d")['Close'].iloc[-1]
         gold_score = min(max(50 + ((gold - 3800) * 0.05), 0), 100)
         
-        score = (vix_score * 0.4) + (oil_score * 0.3) + (gold_score * 0.3)
-        return max(0, min(100, score))
+        return vix_score, oil_score, gold_score
     except Exception as e:
-        return 65 
+        return 60, 60, 60 
 
 # ---------------------------------------------------------
-# 2. UNOFFICIAL SOURCES (30% Weight) & HEADLINE EXTRACTOR
+# OSINT SCORING (Mapped to the 6 New Indicators)
 # ---------------------------------------------------------
-def get_unofficial_score():
-    keywords = [
-        'war', 'escalation', 'hybrid', 'strike', 'missile', 'alerts', 
-        'idf', 'houthis', 'lebanon', 'putin', 'nato', 'nuclear', 'crisis', 'draft'
-    ]
-    threat_count = 0
-    headlines = [] # <-- We added a bucket to hold the actual news
+def scan_news_for_indicators():
+    categories = {
+        "confrontation": ['putin', 'biden', 'xi', 'nato', 'taiwan', 'russia', 'china', 'us', 'warships', 'clash'],
+        "mobilization": ['troops', 'draft', 'mobilization', 'drills', 'border', 'deployment', 'idf', 'readiness'],
+        "alliance": ['treaty', 'article 5', 'allies', 'coalition', 'un security', 'intervention', 'pact'],
+        "nuclear": ['nuclear', 'icbm', 'defcon', 'uranium', 'warhead', 'strategic forces', 'deterrent', 'launch'],
+        "diplomatic": ['sanctions', 'expel', 'embassy', 'talks fail', 'condemn', 'boycott', 'veto', 'withdraw']
+    }
+    
+    threat_counts = {k: 0 for k in categories}
+    headlines = []
+    
     try:
         urls = [
             'https://www.reddit.com/r/worldnews/top/.rss?t=day',
@@ -46,17 +50,21 @@ def get_unofficial_score():
             feed = feedparser.parse(response.content)
             for entry in feed.entries:
                 text = (entry.title).lower()
-                if any(word in text for word in keywords):
-                    threat_count += 1
-                    # Save the headline if we haven't seen it yet
-                    if entry.title not in headlines:
-                        headlines.append(entry.title)
+                is_threat = False
+                for cat, keywords in categories.items():
+                    if any(word in text for word in keywords):
+                        threat_counts[cat] += 1
+                        is_threat = True
+                
+                if is_threat and entry.title not in headlines:
+                    headlines.append(entry.title)
                     
-        score = min(50 + (threat_count * 3), 100)
-        # Return the score AND the top 10 most alarming headlines
-        return score, headlines[:10] 
+        # Calculate baseline category scores (Start at 45, add 5 points per major news hit)
+        scores = {cat: min(45 + (count * 5), 100) for cat, count in threat_counts.items()}
+        return scores, headlines[:10] 
+        
     except Exception as e:
-        return 65, ["LIVE FEED INTERRUPTED: Monitoring background channels..."]
+        return {k: 55 for k in categories}, ["LIVE FEED INTERRUPTED: Monitoring background channels..."]
 
 def get_map_data():
     return {
@@ -66,12 +74,22 @@ def get_map_data():
     }
 
 # ---------------------------------------------------------
-# 3. CORE ALGORITHM
+# CORE ALGORITHM
 # ---------------------------------------------------------
 def main():
-    official_score = get_official_score()
-    unofficial_score, live_headlines = get_unofficial_score() # <-- Grabbing the headlines here
-    final_score = (official_score * 0.7) + (unofficial_score * 0.3)
+    vix, oil, gold = get_market_data()
+    news_scores, live_headlines = scan_news_for_indicators()
+    
+    # Map data to the 6 requested indicators[cite: 5]
+    ind1 = news_scores["confrontation"] 
+    ind2 = news_scores["mobilization"] 
+    ind3 = news_scores["alliance"] 
+    ind4 = news_scores["nuclear"] 
+    ind5 = (news_scores["diplomatic"] * 0.6) + (vix * 0.4) # Blend diplomacy with market anxiety
+    ind6 = (oil * 0.6) + (gold * 0.4) # Energy/Resources based entirely on market proxies
+    
+    # Calculate weighted total (Sum = 100%)[cite: 5]
+    final_score = (ind1 * 0.22) + (ind2 * 0.18) + (ind3 * 0.17) + (ind4 * 0.18) + (ind5 * 0.15) + (ind6 * 0.10)
     
     today_str = datetime.datetime.utcnow().strftime('%m-%d')
     history = []
@@ -83,6 +101,7 @@ def main():
         except:
             pass
             
+    # Seamless backward walk to prevent chart cliffs
     if not history or len(history) < 2:
         mock_history = []
         walk_score = final_score
@@ -90,7 +109,6 @@ def main():
             past_date = (datetime.datetime.utcnow() - datetime.timedelta(days=i)).strftime('%m-%d')
             walk_score = walk_score + random.uniform(-1, 1.2) 
             mock_history.append({"date": past_date, "score": round(max(0, min(100, walk_score)), 1)})
-        
         mock_history.reverse()
         history = mock_history
 
@@ -101,14 +119,18 @@ def main():
     dashboard_data = {
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
         "global_risk_score": round(final_score, 1),
-        "metrics": {
-            "official_index": round(official_score, 1),
-            "unofficial_index": round(unofficial_score, 1)
-        },
         "status": "CRITICAL" if final_score > 75 else "ELEVATED" if final_score > 55 else "STABLE",
         "history": history,
         "map_data": get_map_data(),
-        "headlines": live_headlines # <-- Adding them to the JSON file
+        "headlines": live_headlines,
+        "indicators": [
+            {"name": "Great-Power Military Confrontation", "score": round(ind1, 1), "weight": 22},
+            {"name": "Military Mobilization & Force Posture", "score": round(ind2, 1), "weight": 18},
+            {"name": "Alliance Activation & Conflict Expansion", "score": round(ind3, 1), "weight": 17},
+            {"name": "Nuclear & Strategic Escalation", "score": round(ind4, 1), "weight": 18},
+            {"name": "Diplomatic Breakdown & Crisis Intensity", "score": round(ind5, 1), "weight": 15},
+            {"name": "Energy & Strategic Resource Shock", "score": round(ind6, 1), "weight": 10}
+        ]
     }
     
     with open('data.json', 'w') as f:
