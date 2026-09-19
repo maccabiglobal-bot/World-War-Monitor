@@ -20,37 +20,13 @@
         .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
         #map { width: 100%; height: 300px; }
-
-        /* NEW: CNN / Times Square Ticker Animation */
-        .ticker-wrap {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 40px;
-            background: rgba(15, 23, 42, 0.95);
-            border-top: 2px solid #ef4444;
-            overflow: hidden;
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-        }
-        .ticker-content {
-            display: inline-block;
-            white-space: nowrap;
-            padding-left: 100%; /* Starts all the way on the right edge */
-            animation: ticker 45s linear infinite; /* Scrolls smoothly leftward */
-        }
-        .ticker-content:hover {
-            animation-play-state: paused; /* Pauses if the user hovers their mouse over it */
-        }
-        @keyframes ticker {
-            0% { transform: translate3d(0, 0, 0); }
-            100% { transform: translate3d(-100%, 0, 0); }
-        }
+        
+        .ticker-wrap { position: fixed; bottom: 0; left: 0; width: 100%; height: 40px; background: rgba(15, 23, 42, 0.95); border-top: 2px solid #ef4444; overflow: hidden; z-index: 9999; display: flex; align-items: center; }
+        .ticker-content { display: inline-block; white-space: nowrap; padding-left: 100%; animation: ticker 45s linear infinite; }
+        .ticker-content:hover { animation-play-state: paused; }
+        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
     </style>
 </head>
-<!-- Added pb-16 so the dashboard doesn't hide behind the bottom ticker -->
 <body class="min-h-screen flex flex-col items-center p-4 md:p-8 pb-16 font-sans">
     
     <header class="w-full max-w-5xl mt-2 mb-8 text-center">
@@ -62,6 +38,7 @@
 
     <main class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-6">
         
+        <!-- Score & Chart -->
         <div class="glass p-6 rounded-2xl md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <div class="text-center">
                 <h2 class="text-lg font-semibold text-slate-300 mb-4">Today's Probability</h2>
@@ -75,17 +52,15 @@
             </div>
         </div>
 
-        <div class="glass p-6 rounded-2xl md:col-span-1">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">What We Monitor</h3>
-            <ul class="text-[12px] text-slate-300 space-y-4 font-medium">
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-red-500 mr-3"></span> Wars Spreading to New Countries</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-orange-500 mr-3"></span> Dictatorships Teaming Up</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-yellow-500 mr-3"></span> Disagreements Among Allies</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-3"></span> Weapons & Supply Shortages</li>
-                <li class="flex items-center"><span class="w-2 h-2 rounded-full bg-purple-500 mr-3"></span> Global Economy Panicking</li>
-            </ul>
+        <!-- NEW: The 6 Custom Indicators -->
+        <div class="glass p-6 rounded-2xl md:col-span-1 flex flex-col justify-between">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Risk Indicators</h3>
+            <div id="indicators-container" class="space-y-4 w-full">
+                <!-- Javascript will inject the 6 progress bars here -->
+            </div>
         </div>
 
+        <!-- Map -->
         <div class="glass p-6 rounded-2xl md:col-span-3">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Global Conflict Heat Map</h3>
@@ -100,7 +75,7 @@
 
     </main>
 
-    <!-- NEW: News Ticker Bar -->
+    <!-- News Ticker -->
     <div class="ticker-wrap shadow-[0_-5px_20px_rgba(239,68,68,0.2)]">
         <div class="ticker-content text-sm uppercase tracking-wider" id="ticker-text">
             <span class="text-slate-400 font-medium">ESTABLISHING CONNECTION TO GLOBAL NEWS FEEDS...</span>
@@ -115,6 +90,7 @@
                 const response = await fetch('data.json');
                 const data = await response.json();
                 
+                // Set Main Score
                 const score = data.global_risk_score;
                 document.getElementById('main-score').innerText = score;
                 const statusEl = document.getElementById('status-text');
@@ -127,50 +103,48 @@
                 const date = new Date(data.timestamp);
                 document.getElementById('last-updated').innerText = "Last Updated: " + date.toLocaleDateString() + " " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " UTC";
 
-                // NEW: Populate News Ticker
+                // Build the 6 Progress Bars
+                const indContainer = document.getElementById('indicators-container');
+                if (data.indicators) {
+                    indContainer.innerHTML = data.indicators.map(ind => {
+                        let colorClass = ind.score > 70 ? 'bg-red-500' : ind.score > 50 ? 'bg-yellow-500' : 'bg-green-500';
+                        let textClass = ind.score > 70 ? 'text-red-400' : ind.score > 50 ? 'text-yellow-400' : 'text-green-400';
+                        return `
+                        <div>
+                            <div class="flex justify-between text-[9px] uppercase font-bold text-slate-300 mb-1">
+                                <span>${ind.name} <span class="text-slate-500">(${ind.weight}%)</span></span>
+                                <span class="${textClass}">${ind.score}/100</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5 border border-slate-700">
+                                <div class="h-1.5 rounded-full ${colorClass} transition-all duration-1000" style="width: ${ind.score}%"></div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                }
+
+                // Populate Ticker
                 const headlines = data.headlines || [];
                 const tickerEl = document.getElementById('ticker-text');
                 if (headlines.length > 0) {
-                    // Joins all the news headlines together with a flashing red dot between them
                     tickerEl.innerHTML = headlines.map(h => `<span class="mx-6 text-slate-200 font-bold">⚠️ ${h}</span>`).join('<span class="text-red-500 pulse"> • </span>');
                 } else {
                     tickerEl.innerHTML = '<span class="mx-6 text-green-400 font-bold">NO MAJOR ESCALATIONS DETECTED IN LAST 24 HOURS</span>';
                 }
 
+                // Build Chart
                 const dates = data.history.map(h => h.date);
                 const scores = data.history.map(h => h.score);
-                
                 const ctx = document.getElementById('trendChart').getContext('2d');
                 if(trendChartInstance) trendChartInstance.destroy();
                 trendChartInstance = new Chart(ctx, {
                     type: 'line',
-                    data: {
-                        labels: dates,
-                        datasets: [{
-                            label: 'Index Score',
-                            data: scores,
-                            borderColor: '#ef4444',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { grid: { display: false, color: '#334155' }, ticks: { color: '#94a3b8', maxTicksLimit: 6 } },
-                            y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
-                        }
-                    }
+                    data: { labels: dates, datasets: [{ label: 'Index Score', data: scores, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false, color: '#334155' }, ticks: { color: '#94a3b8', maxTicksLimit: 6 } }, y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } } } }
                 });
 
+                // Build Map
                 const mapData = data.map_data || {};
                 const regionValues = {};
-                
                 for (const [countryCode, threatLevel] of Object.entries(mapData)) {
                     if (threatLevel === 3) regionValues[countryCode] = 'level3';
                     else if (threatLevel === 2) regionValues[countryCode] = 'level2';
@@ -180,24 +154,9 @@
                 document.getElementById('map').innerHTML = ""; 
                 new jsVectorMap({
                     selector: '#map',
-                    map: 'world',
-                    backgroundColor: 'transparent',
-                    zoomOnScroll: false,
-                    regionStyle: {
-                        initial: { fill: '#1e293b', stroke: '#0B0F19', strokeWidth: 0.5 },
-                        hover: { fill: '#cbd5e1' }
-                    },
-                    series: {
-                        regions: [{
-                            attribute: 'fill',
-                            scale: {
-                                'level3': '#ef4444', 
-                                'level2': '#f97316', 
-                                'level1': '#eab308'  
-                            },
-                            values: regionValues
-                        }]
-                    }
+                    map: 'world', backgroundColor: 'transparent', zoomOnScroll: false,
+                    regionStyle: { initial: { fill: '#1e293b', stroke: '#0B0F19', strokeWidth: 0.5 }, hover: { fill: '#cbd5e1' } },
+                    series: { regions: [{ attribute: 'fill', scale: { 'level3': '#ef4444', 'level2': '#f97316', 'level1': '#eab308' }, values: regionValues }] }
                 });
 
             } catch (error) { console.log(error); }
