@@ -1,5 +1,5 @@
 {
-    "timestamp": "2026-09-19T11:35:19.086767Z",
+    "timestamp": "2026-09-19T14:43:17.406904Z",
     "global_risk_score": 58.4,
     "metrics": {
         "official_index": 62.1,
@@ -153,5 +153,6 @@
         "IN": 1,
         "PL": 1,
         "DE": 1
-    }
+    },
+    "headlines": []
 }
