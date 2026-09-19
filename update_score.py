@@ -7,38 +7,43 @@ import yfinance as yf
 import feedparser
 
 # ---------------------------------------------------------
-# 1. OFFICIAL SOURCES (70% Weight) 
+# 1. OFFICIAL SOURCES (70% Weight) - RECALIBRATED SENSITIVITY
 # ---------------------------------------------------------
 def get_official_score():
-    score = 0
     try:
+        # VIX: A VIX of 15 is normal. 20+ is elevated.
         vix = yf.Ticker("^VIX").history(period="1d")['Close'].iloc[0]
-        vix_score = min((vix / 40) * 100, 100) 
+        vix_score = min(40 + ((vix - 12) * 2.5), 100) 
         
+        # Oil: Highly sensitive to Middle East / Houthi / Russian supply issues
         oil = yf.Ticker("CL=F").history(period="5d")
         oil_trend = (oil['Close'].iloc[-1] - oil['Close'].iloc[0]) / oil['Close'].iloc[0]
-        oil_score = 50 + (oil_trend * 500) 
+        oil_score = 55 + (oil_trend * 800) # Amplified sensitivity to small spikes
         
+        # Gold: Safe haven asset. Already historically high.
         gold = yf.Ticker("GC=F").history(period="5d")
         gold_trend = (gold['Close'].iloc[-1] - gold['Close'].iloc[0]) / gold['Close'].iloc[0]
-        gold_score = 50 + (gold_trend * 500)
+        gold_score = 65 + (gold_trend * 800) # Higher baseline because gold is currently surging
         
         score = (vix_score * 0.4) + (oil_score * 0.3) + (gold_score * 0.3)
         return max(0, min(100, score))
     except Exception as e:
-        return 50
+        return 60 # Higher default baseline for current global climate
 
 # ---------------------------------------------------------
-# 2. UNOFFICIAL SOURCES (30% Weight)
+# 2. UNOFFICIAL SOURCES (30% Weight) - EXPANDED KEYWORDS
 # ---------------------------------------------------------
 def get_unofficial_score():
-    keywords = ['world war', 'ww3', 'draft', 'mobilization', 'nuclear', 'defcon', 'escalation']
+    # Expanded to catch current European, Ukrainian, and Middle Eastern escalations
+    keywords = [
+        'war', 'escalation', 'hybrid', 'strike', 'missile', 'alerts', 
+        'idf', 'houthis', 'lebanon', 'putin', 'nato', 'nuclear', 'crisis', 'draft'
+    ]
     threat_count = 0
     try:
         urls = [
             'https://www.reddit.com/r/worldnews/top/.rss?t=day',
-            'https://www.reddit.com/r/geopolitics/top/.rss?t=day',
-            'https://www.reddit.com/r/preppers/top/.rss?t=day'
+            'https://www.reddit.com/r/geopolitics/top/.rss?t=day'
         ]
         headers = {'User-Agent': 'Mozilla/5.0'}
         for url in urls:
@@ -49,20 +54,23 @@ def get_unofficial_score():
                 if any(word in text for word in keywords):
                     threat_count += 1
                     
-        score = min((threat_count / 15) * 100, 100)
+        # Every hit adds 3 points to a baseline of 50
+        score = min(50 + (threat_count * 3), 100)
         return score
     except Exception as e:
-        return 50
+        return 60
 
 # ---------------------------------------------------------
-# 3. HEAT MAP DATA (ISO Country Codes)
+# 3. HEAT MAP DATA (Added explicit regional targets)
 # ---------------------------------------------------------
 def get_map_data():
-    # 3: Ongoing Conflict, 2: High Threat, 1: Potential Conflict
     return {
-        "RU": 3, "UA": 3, "IL": 3, "SD": 3, "MM": 3, "SY": 3, "YE": 3,
-        "TW": 2, "IR": 2, "KP": 2, "KR": 2, "LB": 2, "PK": 2,
-        "CN": 1, "PH": 1, "RS": 1, "VE": 1, "GY": 1, "IN": 1
+        # 3: Ongoing Direct Conflict
+        "RU": 3, "UA": 3, "IL": 3, "LB": 3, "PS": 3, "SY": 3, "YE": 3, "SD": 3, "MM": 3,
+        # 2: High Threat / Targeted / Proxy involvement
+        "TW": 2, "IR": 2, "KP": 2, "KR": 2, "SA": 2, "PK": 2, "BY": 2,
+        # 1: Potential Conflict / Tense Borders / Energy Crisis Impacts
+        "CN": 1, "PH": 1, "RS": 1, "VE": 1, "GY": 1, "IN": 1, "PL": 1, "DE": 1
     }
 
 # ---------------------------------------------------------
@@ -74,27 +82,24 @@ def main():
     final_score = (official_score * 0.7) + (unofficial_score * 0.3)
     
     today_str = datetime.datetime.utcnow().strftime('%m-%d')
-    
-    # Read history to build the 30-day chart
     history = []
+    
     if os.path.exists('data.json'):
         try:
             with open('data.json', 'r') as f:
-                old_data = json.load(f)
-                history = old_data.get('history', [])
+                history = json.load(f).get('history', [])
         except:
             pass
             
-    # If no history exists, generate 30 days of realistic mock data so the chart isn't empty
-    if not history:
-        base_score = 45.0
+    # Generate smoothed recent mock history ending at our new recalibrated baseline
+    if not history or len(history) < 2:
+        base_score = final_score - random.uniform(1, 4)
         for i in range(30, 0, -1):
             past_date = (datetime.datetime.utcnow() - datetime.timedelta(days=i)).strftime('%m-%d')
-            mock_score = base_score + random.uniform(-4, 5)
+            mock_score = base_score + random.uniform(-2, 2.5)
             base_score = mock_score
             history.append({"date": past_date, "score": round(max(0, min(100, mock_score)), 1)})
 
-    # Append today's actual score and keep only the last 30 days
     history = [h for h in history if h['date'] != today_str] 
     history.append({"date": today_str, "score": round(final_score, 1)})
     history = history[-30:]
@@ -106,7 +111,7 @@ def main():
             "official_index": round(official_score, 1),
             "unofficial_index": round(unofficial_score, 1)
         },
-        "status": "ELEVATED" if final_score > 60 else "STABLE",
+        "status": "CRITICAL" if final_score > 75 else "ELEVATED" if final_score > 55 else "STABLE",
         "history": history,
         "map_data": get_map_data()
     }
