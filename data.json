@@ -1,12 +1,8 @@
 {
-    "timestamp": "2026-09-19T23:09:12.327023Z",
+    "timestamp": "2026-09-20T00:14:59.453992Z",
     "global_risk_score": 47.8,
     "status": "STABLE",
     "history": [
-        {
-            "date": "08-21",
-            "score": 52.2
-        },
         {
             "date": "08-22",
             "score": 52.2
@@ -121,6 +117,10 @@
         },
         {
             "date": "09-19",
+            "score": 47.8
+        },
+        {
+            "date": "09-20",
             "score": 47.8
         }
     ],
