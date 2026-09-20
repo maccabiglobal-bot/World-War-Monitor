@@ -19,8 +19,13 @@
         .score-text { position: relative; z-index: 2; font-size: 3.5rem; font-weight: 800; letter-spacing: -2px; }
         .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-        #map { width: 100%; height: 300px; }
         
+        #map { width: 100%; height: 350px; }
+        
+        /* Visually merge Israel and Judea/Samaria by hiding internal borders */
+        path[data-code="PS"] { stroke: transparent !important; }
+        path[data-code="IL"] { stroke: transparent !important; }
+
         .ticker-wrap { position: fixed; bottom: 0; left: 0; width: 100%; height: 40px; background: rgba(15, 23, 42, 0.95); border-top: 2px solid #ef4444; overflow: hidden; z-index: 9999; display: flex; align-items: center; }
         .ticker-content { display: inline-block; white-space: nowrap; padding-left: 100%; animation: ticker 45s linear infinite; }
         .ticker-content:hover { animation-play-state: paused; }
@@ -38,7 +43,7 @@
 
     <main class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        <!-- Score & Chart -->
+        <!-- Score & Chart Section -->
         <div class="glass p-6 rounded-2xl md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <div class="text-center">
                 <h2 class="text-lg font-semibold text-slate-300 mb-4">Today's Probability</h2>
@@ -46,16 +51,21 @@
                     <span class="score-text text-slate-100" id="main-score">--</span>
                 </div>
                 <h3 class="text-xl font-black text-slate-300 uppercase tracking-widest" id="status-text">LOADING...</h3>
-           <div class="glass p-6 rounded-2xl md:col-span-1 flex flex-col justify-between">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Risk Indicators</h3>
-            <div id="indicators-container" class="space-y-5 w-full">
-                <!-- Javascript will inject the 5 progress bars here -->
             </div>
-        </div>
+            <div class="w-full h-full min-h-[200px]">
+                <canvas id="trendChart"></canvas>
             </div>
         </div>
 
-        <!-- Map -->
+        <!-- The 5 Custom Indicators -->
+        <div class="glass p-6 rounded-2xl md:col-span-1 flex flex-col justify-between">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Risk Indicators</h3>
+            <div id="indicators-container" class="space-y-5 w-full">
+                <!-- Javascript injects progress bars here -->
+            </div>
+        </div>
+
+        <!-- World Heat Map -->
         <div class="glass p-6 rounded-2xl md:col-span-3">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Global Conflict Heat Map</h3>
@@ -80,12 +90,26 @@
     <script>
         let trendChartInstance = null;
 
+        // Auto-Translator for OSINT Telegram feeds
+        async function translateText(text) {
+            const hebrewRegex = /[\u0590-\u05FF]/;
+            if (!hebrewRegex.test(text)) return text; 
+            
+            try {
+                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=he|en`);
+                const data = await res.json();
+                return data.responseData.translatedText;
+            } catch (e) {
+                return text; 
+            }
+        }
+
         async function loadData() {
             try {
                 const response = await fetch('data.json');
                 const data = await response.json();
                 
-                // Set Main Score
+                // 1. Update Main Score
                 const score = data.global_risk_score;
                 document.getElementById('main-score').innerText = score;
                 const statusEl = document.getElementById('status-text');
@@ -98,7 +122,7 @@
                 const date = new Date(data.timestamp);
                 document.getElementById('last-updated').innerText = "Last Updated: " + date.toLocaleDateString() + " " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " UTC";
 
-                // Build the 6 Progress Bars
+                // 2. Build Progress Bars
                 const indContainer = document.getElementById('indicators-container');
                 if (data.indicators) {
                     indContainer.innerHTML = data.indicators.map(ind => {
@@ -106,7 +130,7 @@
                         let textClass = ind.score > 70 ? 'text-red-400' : ind.score > 50 ? 'text-yellow-400' : 'text-green-400';
                         return `
                         <div>
-                            <div class="flex justify-between text-[9px] uppercase font-bold text-slate-300 mb-1">
+                            <div class="flex justify-between text-[10px] uppercase font-bold text-slate-300 mb-1">
                                 <span>${ind.name} <span class="text-slate-500">(${ind.weight}%)</span></span>
                                 <span class="${textClass}">${ind.score}/100</span>
                             </div>
@@ -117,16 +141,17 @@
                     }).join('');
                 }
 
-                // Populate Ticker
+                // 3. Build Ticker (WITH TRANSLATION)
                 const headlines = data.headlines || [];
                 const tickerEl = document.getElementById('ticker-text');
                 if (headlines.length > 0) {
-                    tickerEl.innerHTML = headlines.map(h => `<span class="mx-6 text-slate-200 font-bold">⚠️ ${h}</span>`).join('<span class="text-red-500 pulse"> • </span>');
+                    const translatedHeadlines = await Promise.all(headlines.map(h => translateText(h)));
+                    tickerEl.innerHTML = translatedHeadlines.map(h => `<span class="mx-6 text-slate-200 font-bold">⚠️ ${h}</span>`).join('<span class="text-red-500 pulse"> • </span>');
                 } else {
                     tickerEl.innerHTML = '<span class="mx-6 text-green-400 font-bold">NO MAJOR ESCALATIONS DETECTED IN LAST 24 HOURS</span>';
                 }
 
-                // Build Chart
+                // 4. Build Trend Chart
                 const dates = data.history.map(h => h.date);
                 const scores = data.history.map(h => h.score);
                 const ctx = document.getElementById('trendChart').getContext('2d');
@@ -137,9 +162,13 @@
                     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false, color: '#334155' }, ticks: { color: '#94a3b8', maxTicksLimit: 6 } }, y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } } } }
                 });
 
-                // Build Map
+                // 5. Build Interactive Map (Merged Territories Fix)
                 const mapData = data.map_data || {};
                 const regionValues = {};
+                
+                // Force Judea/Samaria to inherit Israel's exact threat level
+                if (mapData['IL']) mapData['PS'] = mapData['IL']; 
+
                 for (const [countryCode, threatLevel] of Object.entries(mapData)) {
                     if (threatLevel === 3) regionValues[countryCode] = 'level3';
                     else if (threatLevel === 2) regionValues[countryCode] = 'level2';
