@@ -1,6 +1,6 @@
 {
-    "timestamp": "2026-09-20T03:10:47.470585Z",
-    "global_risk_score": 47.8,
+    "timestamp": "2026-09-20T04:10:46.164148Z",
+    "global_risk_score": 47.4,
     "status": "STABLE",
     "history": [
         {
@@ -121,7 +121,7 @@
         },
         {
             "date": "09-20",
-            "score": 47.8
+            "score": 47.4
         }
     ],
     "map_data": {
@@ -174,12 +174,12 @@
         },
         {
             "name": "Diplomatic Breakdown & Crisis Intensity",
-            "score": 42.8,
+            "score": 51.0,
             "weight": 15
         },
         {
             "name": "Energy & Strategic Resource Shock",
-            "score": 76.3,
+            "score": 60.0,
             "weight": 10
         }
     ]
